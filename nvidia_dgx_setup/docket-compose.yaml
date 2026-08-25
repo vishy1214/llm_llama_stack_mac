@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  vllm-scout:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-scout
+    restart: unless-stopped
+    ipc: host  # CRITICAL: Maximizes raw memory speeds between the host and container
+    environment:
+      - HF_TOKEN=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
+      - VLLM_DISABLE_COMPILE_CACHE=1
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    expose:
+      - "8000"
+    # CRITICAL: This is the correct syntax to pass native GPUs using free Docker CE
+    privileged: true 
+    runtime: nvidia 
+    command: >
+      vllm serve "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+      --host 0.0.0.0
+      --port 8000
+      --served-model-name "llama-4-scout"
+      --gpu-memory-utilization 0.90
+      --max-model-len 16384
+      --max-num-seqs 32
+      --trust-remote-code
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      # Binds exclusively to your private Tailscale VPN - IP address of the DGX box.
+      - "100.94.214.7:3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm-scout:8000/v1
+      - OPENAI_API_KEY=sk-not-needed-locally
+      - ENABLE_OLLAMA_API=false
+    depends_on:
+      - vllm-scout
+
+volumes:
+  open-webui:
